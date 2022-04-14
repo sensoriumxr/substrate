@@ -23,7 +23,7 @@ use codec::{self, Codec, Decode, Encode};
 use jsonrpsee::{
 	core::{async_trait, RpcResult},
 	proc_macros::rpc,
-	types::error::{CallError, ErrorObjectOwned},
+	types::error::{CallError, ErrorObject},
 };
 
 use sc_rpc_api::DenyUnsafe;
@@ -121,27 +121,27 @@ where
 
 		let uxt: <Block as traits::Block>::Extrinsic =
 			Decode::decode(&mut &*extrinsic).map_err(|e| {
-				CallError::Custom(ErrorObjectOwned::new(
+				CallError::Custom(ErrorObject::owned(
 					Error::DecodeError.into(),
 					"Unable to dry run extrinsic",
-					e.to_string(),
+					Some(e.to_string()),
 				))
 			})?;
 
 		let api_version = api
 			.api_version::<dyn BlockBuilder<Block>>(&at)
 			.map_err(|e| {
-				CallError::Custom(ErrorObjectOwned::new(
+				CallError::Custom(ErrorObject::owned(
 					Error::RuntimeError.into(),
 					"Unable to dry run extrinsic.",
-					e.to_string(),
+					Some(e.to_string()),
 				))
 			})?
 			.ok_or_else(|| {
-				CallError::Custom(ErrorObjectOwned::new(
+				CallError::Custom(ErrorObject::owned(
 					Error::RuntimeError.into(),
 					"Unable to dry run extrinsic.",
-					format!("Could not find `BlockBuilder` api for block `{:?}`.", at),
+					Some(format!("Could not find `BlockBuilder` api for block `{:?}`.", at)),
 				))
 			})?;
 
@@ -150,18 +150,18 @@ where
 			api.apply_extrinsic_before_version_6(&at, uxt)
 				.map(legacy::byte_sized_error::convert_to_latest)
 				.map_err(|e| {
-					CallError::Custom(ErrorObjectOwned::new(
+					CallError::Custom(ErrorObject::owned(
 						Error::RuntimeError.into(),
 						"Unable to dry run extrinsic.",
-						e.to_string(),
+						Some(e.to_string()),
 					))
 				})?
 		} else {
 			api.apply_extrinsic(&at, uxt).map_err(|e| {
-				CallError::Custom(ErrorObjectOwned::new(
+				CallError::Custom(ErrorObject::owned(
 					Error::RuntimeError.into(),
 					"Unable to dry run extrinsic.",
-					e.to_string(),
+					Some(e.to_string()),
 				))
 			})?
 		};

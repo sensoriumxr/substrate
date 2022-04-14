@@ -20,7 +20,7 @@
 
 use jsonrpsee::{
 	core::Error as JsonRpseeError,
-	types::error::{CallError, ErrorObjectOwned},
+	types::error::{CallError, ErrorObject},
 };
 
 /// Dev RPC errors.
@@ -49,13 +49,13 @@ impl From<Error> for JsonRpseeError {
 
 		match e {
 			Error::BlockQueryError(_) => {
-				CallError::Custom(ErrorObjectOwned::code_and_message(BASE_ERROR + 1, msg))
+				CallError::Custom(ErrorObject::owned(BASE_ERROR + 1, msg, None::<()>))
 			},
 			Error::BlockExecutionFailed => {
-				CallError::Custom(ErrorObjectOwned::code_and_message(BASE_ERROR + 3, msg))
+				CallError::Custom(ErrorObject::owned(BASE_ERROR + 3, msg, None::<()>))
 			},
 			Error::WitnessCompactionFailed => {
-				CallError::Custom(ErrorObjectOwned::code_and_message(BASE_ERROR + 4, msg))
+				CallError::Custom(ErrorObject::owned(BASE_ERROR + 4, msg, None::<()>))
 			},
 			Error::UnsafeRpcCalled(e) => e.into(),
 		}

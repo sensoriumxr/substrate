@@ -61,7 +61,7 @@ pub trait BeefyApi<Notification, Hash> {
 		unsubscribe = "beefy_unsubscribeJustifications",
 		item = Notification,
 	)]
-	fn subscribe_justifications(&self) -> RpcResult<()>;
+	fn subscribe_justifications(&self);
 
 	/// Returns hash of the latest BEEFY finalized block as seen by this client.
 	///
@@ -109,21 +109,20 @@ impl<Block> BeefyApiServer<notification::EncodedSignedCommitment, Block::Hash>
 where
 	Block: BlockT,
 {
-	fn subscribe_justifications(&self, pending: PendingSubscription) -> RpcResult<()> {
+	fn subscribe_justifications(&self, pending: PendingSubscription) {
 		let stream = self
 			.signed_commitment_stream
 			.subscribe()
 			.map(|sc| notification::EncodedSignedCommitment::new::<Block>(sc));
 
-		let mut sink = pending.accept()?;
 		let fut = async move {
-			sink.pipe_from_stream(stream).await;
+			if let Some(mut sink) = pending.accept() {
+				sink.pipe_from_stream(stream).await;
+			}
 		}
 		.boxed();
 
-		self.executor
-			.spawn_obj(fut.into())
-			.map_err(|e| JsonRpseeError::to_call_error(e))
+		let _ = self.executor.spawn_obj(fut.into());
 	}
 
 	async fn latest_finalized(&self) -> RpcResult<Block::Hash> {
@@ -175,7 +174,7 @@ mod tests {
 	async fn uninitialized_rpc_handler() {
 		let (rpc, _) = setup_io_handler();
 		let request = r#"{"jsonrpc":"2.0","method":"beefy_getFinalizedHead","params":[],"id":1}"#;
-		let expected_response = r#"{"jsonrpc":"2.0","error":{"code":-32000,"message":"BEEFY RPC endpoint not ready"},"id":1}"#.to_string();
+		let expected_response = r#"{"jsonrpc":"2.0","error":{"code":-32000,"message":"RPC call failed: BEEFY RPC endpoint not ready"},"id":1}"#.to_string();
 		let (result, _) = rpc.raw_json_request(&request).await.unwrap();
 
 		assert_eq!(expected_response, result,);
@@ -200,7 +199,7 @@ mod tests {
 		.to_string();
 		let not_ready = "{\
 			\"jsonrpc\":\"2.0\",\
-			\"error\":{\"code\":-32000,\"message\":\"BEEFY RPC endpoint not ready\"},\
+			\"error\":{\"code\":-32000,\"message\":\"RPC call failed: BEEFY RPC endpoint not ready\"},\
 			\"id\":1\
 		}"
 		.to_string();
@@ -240,14 +239,11 @@ mod tests {
 		);
 		let (response, _) = rpc.raw_json_request(&unsub_req).await.unwrap();
 
-		assert_eq!(response, r#"{"jsonrpc":"2.0","result":"Unsubscribed","id":1}"#);
+		assert_eq!(response, r#"{"jsonrpc":"2.0","result":true,"id":1}"#);
 
 		// Unsubscribe again and fail
 		let (response, _) = rpc.raw_json_request(&unsub_req).await.unwrap();
-		let expected = format!(
-			r#"{{"jsonrpc":"2.0","error":{{"code":-32002,"message":"Server error","data":"Invalid subscription ID={}"}},"id":1}}"#,
-			ser_id
-		);
+		let expected = r#"{"jsonrpc":"2.0","result":false,"id":1}"#;
 
 		assert_eq!(response, expected);
 	}
@@ -268,7 +264,7 @@ mod tests {
 			)
 			.await
 			.unwrap();
-		let expected = r#"{"jsonrpc":"2.0","error":{"code":-32002,"message":"Server error","data":"Invalid subscription ID=\"FOO\""},"id":1}"#;
+		let expected = r#"{"jsonrpc":"2.0","result":false,"id":1}"#;
 
 		assert_eq!(response, expected);
 	}
